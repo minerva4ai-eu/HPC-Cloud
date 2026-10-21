@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: b110-local-heavy-common
+  namespace: <KUBERNETES_NAMESPACE>
+  labels:
+    app: cloud-hpc-b110-benchmark
+    experiment: b1-10-local-heavy-common
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: cloud-hpc-b110-benchmark
+        execution-target: local
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: synthetic-heavy
+          image: docker.io/tensorflow/tensorflow@sha256:f325279f01a3e742a1285d8d736b7e600f72ccf8b55cc19ee0a90b8cbfce4c7a
+          env:
+            - name: CPU_THREADS
+              value: "8"
+            - name: OMP_NUM_THREADS
+              value: "8"
+            - name: RESULT_PATH
+              value: /results/result_heavy.json
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              echo "CONTAINER_START_UTC=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
+              python3 /work/train_heavy_ai_v1.py | tee /results/workload.log
+              cat /results/result_heavy.json
+              grep -q '^HEAVY_AI_BASELINE=PASS$' /results/workload.log
+              python3 - <<'PY'
+              import json
+              with open("/results/result_heavy.json", encoding="utf-8") as fh:
+                  result = json.load(fh)
+              if result.get("cpu_threads") != 8:
+                  raise SystemExit("CPU_THREAD_ACCEPTANCE=FAIL")
+              if result.get("test_accuracy", 0) < 0.95:
+                  raise SystemExit("RESULT_ACCEPTANCE=FAIL")
+              print("RESULT_ACCEPTANCE=PASS")
+              PY
+              echo "B1_10_LOCAL_HEAVY_EXECUTION=PASS"
+              echo "CONTAINER_END_UTC=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
+          resources:
+            requests:
+              cpu: "8"
+              memory: 8Gi
+            limits:
+              cpu: "8"
+              memory: 8Gi
+          volumeMounts:
+            - name: training-script
+              mountPath: /work/train_heavy_ai_v1.py
+              subPath: train_heavy_ai_v1.py
+              readOnly: true
+            - name: results
+              mountPath: /results
+      volumes:
+        - name: training-script
+          configMap:
+            name: cloud-hpc-synthetic-heavy-v1-script
+            defaultMode: 0420
+        - name: results
+          emptyDir: {}

@@ -1,0 +1,188 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b16-route-local-preflight
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6a-route-policy
+
+  annotations:
+    cloud-hpc/offload: "local"
+
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+
+      labels:
+        app: cloud-hpc-router
+        experiment: b1-6a-route-policy
+        route-test: local
+
+      annotations:
+        cloud-hpc/offload: "local"
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+
+        - name: route-policy
+
+          image: docker.io/library/alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+
+          env:
+
+            - name: OFFLOAD_TARGET
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['cloud-hpc/offload']
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "======================================"
+              echo "Cloud-HPC B1.6A Routing Policy"
+              echo "======================================"
+
+              echo "POD=$(hostname)"
+              echo "OFFLOAD_TARGET=${OFFLOAD_TARGET}"
+
+              case "${OFFLOAD_TARGET}" in
+
+                local)
+
+                  echo "ROUTING_DECISION=LOCAL"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+                  ;;
+
+                mn5)
+
+                  echo "ROUTING_DECISION=MN5"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+                  ;;
+
+                *)
+
+                  echo "ROUTING_DECISION=INVALID"
+                  echo "ROUTING_POLICY=FAIL"
+                  exit 1
+                  ;;
+
+              esac
+
+              echo "ROUTING_POLICY=PASS"
+              echo "B1_6A_POLICY_PREFLIGHT=PASS"
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+---
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b16-route-mn5-preflight
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6a-route-policy
+
+  annotations:
+    cloud-hpc/offload: "mn5"
+
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+
+      labels:
+        app: cloud-hpc-router
+        experiment: b1-6a-route-policy
+        route-test: mn5
+
+      annotations:
+        cloud-hpc/offload: "mn5"
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+
+        - name: route-policy
+
+          image: docker.io/library/alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+
+          env:
+
+            - name: OFFLOAD_TARGET
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['cloud-hpc/offload']
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "======================================"
+              echo "Cloud-HPC B1.6A Routing Policy"
+              echo "======================================"
+
+              echo "POD=$(hostname)"
+              echo "OFFLOAD_TARGET=${OFFLOAD_TARGET}"
+
+              case "${OFFLOAD_TARGET}" in
+
+                local)
+
+                  echo "ROUTING_DECISION=LOCAL"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+                  ;;
+
+                mn5)
+
+                  echo "ROUTING_DECISION=MN5"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+                  ;;
+
+                *)
+
+                  echo "ROUTING_DECISION=INVALID"
+                  echo "ROUTING_POLICY=FAIL"
+                  exit 1
+                  ;;
+
+              esac
+
+              echo "ROUTING_POLICY=PASS"
+              echo "B1_6A_POLICY_PREFLIGHT=PASS"
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+
+            limits:
+              cpu: 100m
+              memory: 64Mi

@@ -1,0 +1,305 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b16-mn5-tier-a
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6c-mn5-tier-a
+
+  annotations:
+    cloud-hpc/offload: "mn5"
+
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+
+      labels:
+        app: cloud-hpc-router
+        experiment: b1-6c-mn5-tier-a
+        execution-target: mn5
+
+      annotations:
+        cloud-hpc/offload: "mn5"
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+
+        - name: kube2hpc-controller
+
+          image: docker.io/library/python@sha256:a630a63cdb314e2d138a2fca3e375e319e8568346ffafac5b980f888630ac4f1
+
+          workingDir: /workspace
+
+          env:
+
+            - name: OFFLOAD_TARGET
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['cloud-hpc/offload']
+
+            - name: CONTROLLER_CODE_BASELINE
+              value: "b1.5c-r2"
+
+            - name: HPC_SSH_ALIAS
+              value: "<HPC_SSH_ALIAS>"
+
+            - name: HPC_HOST
+              value: "<HPC_HOST>"
+
+            - name: HPC_USER
+              value: "<HPC_USER>"
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "============================================="
+              echo "Cloud-HPC B1.6C MN5 Tier-A Execution"
+              echo "============================================="
+
+              echo "K8S_CONTROLLER_POD=$(hostname)"
+              echo "OFFLOAD_TARGET=${OFFLOAD_TARGET}"
+              echo "CONTROLLER_CODE_BASELINE=${CONTROLLER_CODE_BASELINE}"
+
+              echo
+              echo "========== ROUTING =========="
+
+              if [ "${OFFLOAD_TARGET}" != "mn5" ]; then
+                  echo "ROUTING_DECISION=INVALID"
+                  echo "B1_6C_MN5_EXECUTION=FAIL"
+                  exit 2
+              fi
+
+              echo "ROUTING_DECISION=MN5"
+              echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+              echo "ROUTING_POLICY=PASS"
+
+              echo
+              echo "========== CONTROLLER ENVIRONMENT =========="
+
+              python3 --version
+
+              apt-get update -qq
+
+              DEBIAN_FRONTEND=noninteractive \
+              apt-get install \
+                -y \
+                -qq \
+                --no-install-recommends \
+                openssh-client \
+                ca-certificates \
+                >/dev/null
+
+              echo "SSH_VERSION=$(ssh -V 2>&1)"
+
+              echo
+              echo "========== WORKSPACE STAGING =========="
+
+              mkdir -p \
+                /workspace/src \
+                /workspace/config \
+                /workspace/job-specs \
+                /workspace/results/remote-jobs \
+                /root/.ssh
+
+              cp \
+                /inputs/controller/kube2hpc.py \
+                /workspace/src/kube2hpc.py
+
+              cp \
+                /inputs/controller/run_pipeline.py \
+                /workspace/src/run_pipeline.py
+
+              cp \
+                /inputs/config/targets.json \
+                /workspace/config/targets.json
+
+              cp \
+                /inputs/job-specs/tier-a-replay.json \
+                /workspace/job-specs/tier-a-replay.json
+
+              chmod 700 /root/.ssh
+
+              cat > /root/.ssh/config <<SSHCONFIG
+              Host ${HPC_SSH_ALIAS}
+                  HostName ${HPC_HOST}
+                  User ${HPC_USER}
+                  IdentityFile /ssh/id_ed25519
+                  IdentitiesOnly yes
+                  BatchMode yes
+                  StrictHostKeyChecking yes
+                  UserKnownHostsFile /ssh/known_hosts
+                  ConnectTimeout 10
+                  ServerAliveInterval 30
+                  ServerAliveCountMax 3
+              SSHCONFIG
+
+              chmod 600 /root/.ssh/config
+
+              echo "WORKSPACE_STAGING=PASS"
+
+              echo
+              echo "========== INPUT VALIDATION =========="
+
+              test -s /ssh/id_ed25519
+              test -s /ssh/known_hosts
+
+              test -s /workspace/src/kube2hpc.py
+              test -s /workspace/src/run_pipeline.py
+              test -s /workspace/config/targets.json
+              test -s /workspace/job-specs/tier-a-replay.json
+
+              echo "K8S_CONTROLLER_FILES=PASS"
+
+              echo
+              echo "========== SOURCE CHECKSUMS =========="
+
+              sha256sum \
+                /workspace/src/kube2hpc.py \
+                /workspace/src/run_pipeline.py \
+                /workspace/config/targets.json \
+                /workspace/job-specs/tier-a-replay.json
+
+              echo
+              echo "========== PATH VALIDATION =========="
+
+              python3 - <<'PY'
+              from pathlib import Path
+
+              run = Path("/workspace/src/run_pipeline.py")
+              base = run.resolve().parents[1]
+              controller = base / "src" / "kube2hpc.py"
+
+              print(f"EXPECTED_BASE={base}")
+              print(f"EXPECTED_CONTROLLER={controller}")
+
+              if base != Path("/workspace"):
+                  raise SystemExit("BASE_PATH_VALIDATION=FAIL")
+
+              if not controller.is_file():
+                  raise SystemExit("CONTROLLER_PATH_VALIDATION=FAIL")
+
+              print("BASE_PATH_VALIDATION=PASS")
+              print("CONTROLLER_PATH_VALIDATION=PASS")
+              PY
+
+              echo
+              echo "========== KUBERNETES -> MN5 =========="
+
+              ssh "${HPC_SSH_ALIAS}" '
+                  set -eu
+
+                  echo REMOTE_HOST=$(hostname -s)
+                  echo REMOTE_USER=$(whoami)
+                  echo REMOTE_ARCH=$(uname -m)
+                  echo SLURM_VERSION=$(scontrol --version)
+
+                  command -v sbatch
+                  command -v squeue
+                  command -v sacct
+
+                  echo K8S_CONTROLLER_TO_MN5=PASS
+              '
+
+              echo
+              echo "========== MN5 AI EXECUTION =========="
+
+              cd /workspace
+
+              if python3 \
+                   src/run_pipeline.py \
+                   job-specs/tier-a-replay.json
+              then
+
+                  SUMMARY_PATH="$(
+                    find \
+                      /workspace/results/remote-jobs \
+                      -type f \
+                      -name summary.json \
+                      | head -n 1
+                  )"
+
+                  if [ -z "${SUMMARY_PATH}" ]; then
+                      echo "SUMMARY_JSON_NOT_FOUND"
+                      echo "B1_6C_MN5_EXECUTION=FAIL"
+                      exit 3
+                  fi
+
+                  echo
+                  echo "========== SUMMARY =========="
+
+                  echo "SUMMARY_PATH=${SUMMARY_PATH}"
+                  cat "${SUMMARY_PATH}"
+
+                  echo
+                  echo "========== SUMMARY SHA256 =========="
+
+                  sha256sum "${SUMMARY_PATH}"
+
+                  echo
+                  echo "MN5_TIER_A_ROUTED=PASS"
+                  echo "B1_6C_MN5_EXECUTION=PASS"
+
+              else
+
+                  RC=$?
+
+                  echo "PIPELINE_EXIT_CODE=${RC}"
+                  echo "B1_6C_MN5_EXECUTION=FAIL"
+
+                  exit "${RC}"
+              fi
+
+          volumeMounts:
+
+            - name: workspace
+              mountPath: /workspace
+
+            - name: controller-code
+              mountPath: /inputs/controller
+              readOnly: true
+
+            - name: target-config
+              mountPath: /inputs/config
+              readOnly: true
+
+            - name: tier-a-spec
+              mountPath: /inputs/job-specs
+              readOnly: true
+
+            - name: mn5-ssh
+              mountPath: /ssh
+              readOnly: true
+
+      volumes:
+
+        - name: workspace
+          emptyDir: {}
+
+        - name: controller-code
+          configMap:
+            name: kube2hpc-controller-code
+
+        - name: target-config
+          configMap:
+            name: kube2hpc-target-config
+
+        - name: tier-a-spec
+          configMap:
+            name: kube2hpc-tier-a-spec
+
+        - name: mn5-ssh
+          secret:
+            secretName: kube2hpc-mn5-ssh
+            defaultMode: 0400

@@ -1,0 +1,89 @@
+# ==================================================
+# Credentials / secrets -- NEVER COMMIT
+# ==================================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+!*.example
+*authorized_keys*
+*kubeconfig*
+kubeconfig*
+*kube2hpc_mn5_ed25519*
+k8s/*secret*.yaml
+k8s/*secret*.yml
+
+# Runtime-private target configuration
+config/targets.json
+clouds.yaml
+secure.yaml
+*openrc*
+.aws/
+.ssh/
+.kube/
+
+# ==================================================
+# Python
+# ==================================================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==================================================
+# Runtime outputs
+# ==================================================
+results/remote-jobs/
+artifacts/benchmarks/
+artifacts/analysis/
+artifacts/plots/
+logs/*.log
+*.log
+*.out
+*.err
+slurm-*.out
+slurm-*.err
+reports/
+
+# ==================================================
+# Containers / large artifacts
+# ==================================================
+*.sif
+*.img
+*.sqsh
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+
+# ==================================================
+# Datasets / models
+# ==================================================
+datasets/
+data/
+models/
+checkpoints/
+
+# ==================================================
+# Editors / OS
+# ==================================================
+.vscode/
+.idea/
+.DS_Store
+*~
+*.swp
+
+# Internal agent and continuity material
+.codex*/
+
+# Cloud-HPC / MN5 machine identities
+*kube2hpc*_mn5_ed25519*

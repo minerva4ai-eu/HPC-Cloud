@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mn5-auth-preflight
+  namespace: <KUBERNETES_NAMESPACE>
+  labels:
+    app: kube2hpc-lite
+    experiment: b1-5-auth-preflight
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+      labels:
+        app: kube2hpc-lite
+        experiment: b1-5-auth-preflight
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: mn5-auth-preflight
+          image: alpine:3.20
+          env:
+            - name: HPC_HOST
+              value: "<HPC_HOST>"
+            - name: HPC_USER
+              value: "<HPC_USER>"
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "========================================"
+              echo "Kube2HPC B1.5B Authentication Preflight"
+              echo "========================================"
+
+              echo "POD_HOST=$(hostname)"
+
+              apk add --no-cache openssh-client >/dev/null
+
+              echo "OPENSSH_CLIENT=$(ssh -V 2>&1)"
+
+              test -s /ssh/id_ed25519
+              test -s /ssh/known_hosts
+
+              echo "SSH_SECRET_MOUNT=PASS"
+
+              REMOTE_OUTPUT="$(
+                ssh \
+                  -F /dev/null \
+                  -i /ssh/id_ed25519 \
+                  -o IdentitiesOnly=yes \
+                  -o BatchMode=yes \
+                  -o StrictHostKeyChecking=yes \
+                  -o UserKnownHostsFile=/ssh/known_hosts \
+                  -o ConnectTimeout=10 \
+                  "${HPC_USER}@${HPC_HOST}" \
+                  '
+                  set -eu
+
+                  echo REMOTE_HOST=$(hostname -s)
+                  echo REMOTE_USER=$(whoami)
+                  echo REMOTE_ARCH=$(uname -m)
+
+                  echo SBATCH=$(command -v sbatch)
+                  echo SQUEUE=$(command -v squeue)
+                  echo SACCT=$(command -v sacct)
+
+                  echo SLURM_VERSION=$(scontrol --version)
+
+                  echo REMOTE_SLURM_TOOLS=PASS
+                  '
+              )"
+
+              printf '%s\n' "$REMOTE_OUTPUT"
+
+              printf '%s\n' "$REMOTE_OUTPUT" |
+                grep -q "^REMOTE_USER=${HPC_USER}$"
+
+              printf '%s\n' "$REMOTE_OUTPUT" |
+                grep -q '^REMOTE_ARCH=x86_64$'
+
+              printf '%s\n' "$REMOTE_OUTPUT" |
+                grep -q '^REMOTE_SLURM_TOOLS=PASS$'
+
+              echo "POD_TO_MN5_AUTH=PASS"
+              echo "KUBE2HPC_K8S_AUTH_PREFLIGHT=PASS"
+
+          volumeMounts:
+            - name: mn5-ssh
+              mountPath: /ssh
+              readOnly: true
+
+      volumes:
+        - name: mn5-ssh
+          secret:
+            secretName: kube2hpc-mn5-ssh
+            defaultMode: 0400

@@ -1,0 +1,29 @@
+{
+  "name": "tier-a-replay",
+  "target": "hpc-site",
+  "slurm_script": "slurm/tier-a-mn5.slurm",
+  "sbatch_args": [
+    "--account=<SLURM_ACCOUNT>",
+    "--partition=<SLURM_PARTITION>"
+  ],
+  "stdout": "logs/tier-a-mn5-{job_id}.out",
+  "stderr": "logs/tier-a-mn5-{job_id}.err",
+  "result": "results/job-{job_id}/result.json",
+  "artifacts": [
+    {
+      "path": "scripts/train_cpu_ai_v1.py",
+      "sha256": "99100ee2e0609551d392399b3c7ba3625250a0ccf23b2482ddbcc2a0d6476f17"
+    },
+    {
+      "path": "containers/tensorflow-2.21.0-cpu.sif",
+      "sha256": "4baf239bc26d7563bb02f6bc105989f09033ac5a6d5b79f5d68a7fca7016d45f"
+    }
+  ],
+  "success_markers": [
+    "SCRIPT_CHECKSUM=PASS",
+    "SIF_CHECKSUM=PASS",
+    "CPU_AI_BASELINE=PASS",
+    "AI_EXIT_CODE=0",
+    "MN5_TIER_A=PASS"
+  ]
+}

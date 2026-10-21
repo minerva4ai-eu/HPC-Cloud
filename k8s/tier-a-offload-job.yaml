@@ -1,0 +1,290 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: tier-a-offload-b15c-r2
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: kube2hpc-lite
+    experiment: b1-5c-tier-a-offload-r2
+
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+      labels:
+        app: kube2hpc-lite
+        experiment: b1-5c-tier-a-offload-r2
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: kube2hpc-controller
+
+          image: docker.io/library/python@sha256:a630a63cdb314e2d138a2fca3e375e319e8568346ffafac5b980f888630ac4f1
+
+          workingDir: /workspace
+
+          env:
+            - name: CONTROLLER_GIT_BASELINE
+              value: "a4fe90a"
+            - name: HPC_SSH_ALIAS
+              value: "<HPC_SSH_ALIAS>"
+            - name: HPC_HOST
+              value: "<HPC_HOST>"
+            - name: HPC_USER
+              value: "<HPC_USER>"
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "============================================="
+              echo "Cloud-HPC B1.5C Kubernetes -> MN5 Offload"
+              echo "Attempt: R2"
+              echo "============================================="
+
+              echo "K8S_CONTROLLER_POD=$(hostname)"
+              echo "CONTROLLER_GIT_BASELINE=${CONTROLLER_GIT_BASELINE}"
+
+              echo
+              echo "========== CONTROLLER ENVIRONMENT =========="
+
+              python3 --version
+
+              apt-get update -qq
+
+              DEBIAN_FRONTEND=noninteractive \
+              apt-get install \
+                -y \
+                -qq \
+                --no-install-recommends \
+                openssh-client \
+                ca-certificates \
+                >/dev/null
+
+              echo "SSH_VERSION=$(ssh -V 2>&1)"
+
+              echo
+              echo "========== WORKSPACE STAGING =========="
+
+              mkdir -p \
+                /workspace/src \
+                /workspace/config \
+                /workspace/job-specs \
+                /workspace/results/remote-jobs \
+                /root/.ssh
+
+              cp \
+                /inputs/controller/kube2hpc.py \
+                /workspace/src/kube2hpc.py
+
+              cp \
+                /inputs/controller/run_pipeline.py \
+                /workspace/src/run_pipeline.py
+
+              cp \
+                /inputs/config/targets.json \
+                /workspace/config/targets.json
+
+              cp \
+                /inputs/job-specs/tier-a-replay.json \
+                /workspace/job-specs/tier-a-replay.json
+
+              chmod 700 /root/.ssh
+
+              cat > /root/.ssh/config <<SSHCONFIG
+              Host ${HPC_SSH_ALIAS}
+                  HostName ${HPC_HOST}
+                  User ${HPC_USER}
+                  IdentityFile /ssh/id_ed25519
+                  IdentitiesOnly yes
+                  BatchMode yes
+                  StrictHostKeyChecking yes
+                  UserKnownHostsFile /ssh/known_hosts
+                  ConnectTimeout 10
+                  ServerAliveInterval 30
+                  ServerAliveCountMax 3
+              SSHCONFIG
+
+              chmod 600 /root/.ssh/config
+
+              echo "WORKSPACE_STAGING=PASS"
+
+              echo
+              echo "========== MOUNT / FILE VALIDATION =========="
+
+              test -s /ssh/id_ed25519
+              test -s /ssh/known_hosts
+
+              test -s /workspace/src/kube2hpc.py
+              test -s /workspace/src/run_pipeline.py
+
+              test -s /workspace/config/targets.json
+
+              test -s \
+                /workspace/job-specs/tier-a-replay.json
+
+              echo "K8S_CONTROLLER_FILES=PASS"
+
+              echo
+              echo "========== SOURCE CHECKSUMS =========="
+
+              sha256sum \
+                /workspace/src/kube2hpc.py \
+                /workspace/src/run_pipeline.py \
+                /workspace/config/targets.json \
+                /workspace/job-specs/tier-a-replay.json
+
+              echo
+              echo "========== PYTHON PATH VALIDATION =========="
+
+              python3 - <<'PY'
+              from pathlib import Path
+
+              run = Path("/workspace/src/run_pipeline.py")
+
+              base = run.resolve().parents[1]
+
+              controller = (
+                  base
+                  / "src"
+                  / "kube2hpc.py"
+              )
+
+              print(f"EXPECTED_BASE={base}")
+              print(f"EXPECTED_CONTROLLER={controller}")
+
+              if base != Path("/workspace"):
+                  raise SystemExit(
+                      "BASE_PATH_VALIDATION=FAIL"
+                  )
+
+              if not controller.is_file():
+                  raise SystemExit(
+                      "CONTROLLER_PATH_VALIDATION=FAIL"
+                  )
+
+              print("BASE_PATH_VALIDATION=PASS")
+              print("CONTROLLER_PATH_VALIDATION=PASS")
+              PY
+
+              echo
+              echo "========== KUBERNETES -> MN5 SSH =========="
+
+              ssh "${HPC_SSH_ALIAS}" '
+                  set -eu
+
+                  echo REMOTE_HOST=$(hostname -s)
+                  echo REMOTE_USER=$(whoami)
+                  echo REMOTE_ARCH=$(uname -m)
+                  echo SLURM_VERSION=$(scontrol --version)
+
+                  command -v sbatch
+                  command -v squeue
+                  command -v sacct
+
+                  echo K8S_CONTROLLER_TO_MN5=PASS
+              '
+
+              echo
+              echo "========== KUBE2HPC PIPELINE =========="
+
+              cd /workspace
+
+              if python3 \
+                   src/run_pipeline.py \
+                   job-specs/tier-a-replay.json
+              then
+
+                  echo
+                  echo "========== LOCATE SUMMARY =========="
+
+                  SUMMARY_PATH="$(
+                    find \
+                      /workspace/results/remote-jobs \
+                      -type f \
+                      -name summary.json \
+                      | head -n 1
+                  )"
+
+                  if [ -z "$SUMMARY_PATH" ]; then
+                      echo "SUMMARY_JSON_NOT_FOUND"
+                      echo "KUBE2HPC_K8S_TIER_A_OFFLOAD=FAIL"
+                      exit 1
+                  fi
+
+                  echo "SUMMARY_PATH=$SUMMARY_PATH"
+
+                  echo
+                  echo "========== SUMMARY.JSON =========="
+
+                  cat "$SUMMARY_PATH"
+
+                  echo
+                  echo "========== SUMMARY CHECKSUM =========="
+
+                  sha256sum "$SUMMARY_PATH"
+
+                  echo
+                  echo "KUBE2HPC_K8S_TIER_A_OFFLOAD=PASS"
+
+              else
+
+                  PIPELINE_RC=$?
+
+                  echo "PIPELINE_EXIT_CODE=$PIPELINE_RC"
+                  echo "KUBE2HPC_K8S_TIER_A_OFFLOAD=FAIL"
+
+                  exit "$PIPELINE_RC"
+              fi
+
+          volumeMounts:
+
+            - name: workspace
+              mountPath: /workspace
+
+            - name: controller-code
+              mountPath: /inputs/controller
+              readOnly: true
+
+            - name: target-config
+              mountPath: /inputs/config
+              readOnly: true
+
+            - name: tier-a-spec
+              mountPath: /inputs/job-specs
+              readOnly: true
+
+            - name: mn5-ssh
+              mountPath: /ssh
+              readOnly: true
+
+      volumes:
+
+        - name: workspace
+          emptyDir: {}
+
+        - name: controller-code
+          configMap:
+            name: kube2hpc-controller-code
+
+        - name: target-config
+          configMap:
+            name: kube2hpc-target-config
+
+        - name: tier-a-spec
+          configMap:
+            name: kube2hpc-tier-a-spec
+
+        - name: mn5-ssh
+          secret:
+            secretName: kube2hpc-mn5-ssh
+            defaultMode: 0400

@@ -1,0 +1,405 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b16d-unified-router
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6d-unified-routing
+
+spec:
+  backoffLimit: 0
+
+  template:
+
+    metadata:
+
+      labels:
+        app: cloud-hpc-router
+        experiment: b1-6d-unified-routing
+
+    spec:
+
+      restartPolicy: Never
+
+      containers:
+
+        - name: cloud-hpc-router
+
+          image: docker.io/tensorflow/tensorflow@sha256:f325279f01a3e742a1285d8d736b7e600f72ccf8b55cc19ee0a90b8cbfce4c7a
+
+          workingDir: /workspace
+
+          env:
+            - name: HPC_SSH_ALIAS
+              value: "<HPC_SSH_ALIAS>"
+            - name: HPC_HOST
+              value: "<HPC_HOST>"
+            - name: HPC_USER
+              value: "<HPC_USER>"
+
+          command:
+            - /bin/bash
+            - -lc
+
+          args:
+            - |
+              set -euo pipefail
+
+              echo "============================================="
+              echo "Cloud-HPC B1.6D Unified Router"
+              echo "============================================="
+
+              ROUTER_START_EPOCH=$(date +%s)
+
+              REQUEST_ID="$(cat /request/requestId)"
+              TARGET="$(cat /request/target)"
+              APPROVAL_POLICY="$(cat /request/approvalPolicy)"
+              APPROVED="$(cat /request/approved)"
+
+              echo "REQUEST_ID=${REQUEST_ID}"
+              echo "REQUEST_TARGET=${TARGET}"
+              echo "APPROVAL_POLICY=${APPROVAL_POLICY}"
+              echo "APPROVED_INITIAL=${APPROVED}"
+
+              echo
+              echo "========== REQUEST VALIDATION =========="
+
+              case "${TARGET}" in
+
+                local|mn5)
+                  echo "REQUEST_TARGET_VALID=PASS"
+                  ;;
+
+                *)
+                  echo "REQUEST_TARGET_VALID=FAIL"
+                  echo "B1_6D_UNIFIED_EXECUTION=FAIL"
+                  exit 2
+                  ;;
+
+              esac
+
+              echo
+              echo "========== ROUTING =========="
+
+              if [ "${TARGET}" = "local" ]; then
+
+                  echo "ROUTING_DECISION=LOCAL"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+
+                  echo "APPROVAL_REQUIRED=false"
+                  echo "APPROVAL_STATE=NOT_REQUIRED"
+
+                  echo
+                  echo "========== LOCAL SCRIPT INTEGRITY =========="
+
+                  EXPECTED_SHA="99100ee2e0609551d392399b3c7ba3625250a0ccf23b2482ddbcc2a0d6476f17"
+
+                  ACTUAL_SHA="$(
+                    sha256sum \
+                      /inputs/tier-a/train_cpu_ai_v1.py \
+                    | awk '{print $1}'
+                  )"
+
+                  echo "EXPECTED_SCRIPT_SHA256=${EXPECTED_SHA}"
+                  echo "ACTUAL_SCRIPT_SHA256=${ACTUAL_SHA}"
+
+                  if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+
+                      echo "SCRIPT_CHECKSUM=FAIL"
+                      echo "B1_6D_UNIFIED_EXECUTION=FAIL"
+
+                      exit 3
+
+                  fi
+
+                  echo "SCRIPT_CHECKSUM=PASS"
+
+                  echo
+                  echo "========== LOCAL EXECUTION =========="
+
+                  mkdir -p /workspace/results
+
+                  export PYTHONHASHSEED=20260813
+                  export OMP_NUM_THREADS=4
+                  export TF_NUM_INTRAOP_THREADS=4
+                  export TF_NUM_INTEROP_THREADS=1
+
+                  python3 \
+                    /inputs/tier-a/train_cpu_ai_v1.py \
+                    | tee /workspace/results/workload.log
+
+                  echo
+                  echo "========== LOCAL RESULT =========="
+
+                  cat /results/result.json
+
+                  grep -q \
+                    '^CPU_AI_BASELINE=PASS$' \
+                    /workspace/results/workload.log
+
+                  python3 - <<'PY'
+              import json
+
+              with open(
+                  "/results/result.json",
+                  "r",
+                  encoding="utf-8"
+              ) as fh:
+
+                  result = json.load(fh)
+
+              accuracy = result.get(
+                  "test_accuracy",
+                  0
+              )
+
+              print(
+                  f"VALIDATED_TEST_ACCURACY={accuracy}"
+              )
+
+              if accuracy < 0.95:
+
+                  raise SystemExit(
+                      "RESULT_ACCEPTANCE=FAIL"
+                  )
+
+              print(
+                  "RESULT_ACCEPTANCE=PASS"
+              )
+              PY
+
+                  echo
+                  echo "LOCAL_TIER_A=PASS"
+                  echo "EXECUTION_TARGET=LOCAL"
+
+              elif [ "${TARGET}" = "mn5" ]; then
+
+                  echo "ROUTING_DECISION=MN5"
+                  echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+
+                  if [ "${APPROVAL_POLICY}" = "required" ]; then
+
+                      echo "APPROVAL_REQUIRED=true"
+
+                      APPROVAL_WAIT_START=$(date +%s)
+
+                      while true
+                      do
+
+                          APPROVED="$(
+                            cat /request/approved
+                          )"
+
+                          if [ "${APPROVED}" = "true" ]; then
+
+                              echo "APPROVAL_STATE=APPROVED"
+                              break
+
+                          fi
+
+                          NOW=$(date +%s)
+
+                          WAIT_SECONDS=$((NOW - APPROVAL_WAIT_START))
+
+                          echo \
+                            "APPROVAL_STATE=AWAITING_APPROVAL wait_seconds=${WAIT_SECONDS}"
+
+                          if [ "${WAIT_SECONDS}" -ge 600 ]; then
+
+                              echo "APPROVAL_STATE=TIMEOUT"
+                              echo "B1_6D_UNIFIED_EXECUTION=FAIL"
+
+                              exit 4
+
+                          fi
+
+                          sleep 5
+
+                      done
+
+                  else
+
+                      echo "APPROVAL_REQUIRED=false"
+                      echo "APPROVAL_STATE=NOT_REQUIRED"
+
+                  fi
+
+                  APPROVAL_END=$(date +%s)
+
+                  echo
+                  echo "========== MN5 CONTROLLER PREPARATION =========="
+
+                  apt-get update -qq
+
+                  DEBIAN_FRONTEND=noninteractive \
+                  apt-get install \
+                    -y \
+                    -qq \
+                    --no-install-recommends \
+                    openssh-client \
+                    ca-certificates \
+                    >/dev/null
+
+                  mkdir -p \
+                    /workspace/src \
+                    /workspace/config \
+                    /workspace/job-specs \
+                    /workspace/results/remote-jobs \
+                    /root/.ssh
+
+                  cp \
+                    /inputs/controller/kube2hpc.py \
+                    /workspace/src/kube2hpc.py
+
+                  cp \
+                    /inputs/controller/run_pipeline.py \
+                    /workspace/src/run_pipeline.py
+
+                  cp \
+                    /inputs/config/targets.json \
+                    /workspace/config/targets.json
+
+                  cp \
+                    /inputs/job-specs/tier-a-replay.json \
+                    /workspace/job-specs/tier-a-replay.json
+
+                  chmod 700 /root/.ssh
+
+                  cat > /root/.ssh/config <<SSHCONFIG
+              Host ${HPC_SSH_ALIAS}
+                  HostName ${HPC_HOST}
+                  User ${HPC_USER}
+                  IdentityFile /ssh/id_ed25519
+                  IdentitiesOnly yes
+                  BatchMode yes
+                  StrictHostKeyChecking yes
+                  UserKnownHostsFile /ssh/known_hosts
+                  ConnectTimeout 10
+                  ServerAliveInterval 30
+                  ServerAliveCountMax 3
+              SSHCONFIG
+
+                  chmod 600 /root/.ssh/config
+
+                  echo "CONTROLLER_PREPARATION=PASS"
+
+                  echo
+                  echo "========== MN5 EXECUTION =========="
+
+                  cd /workspace
+
+                  python3 \
+                    src/run_pipeline.py \
+                    job-specs/tier-a-replay.json
+
+                  SUMMARY_PATH="$(
+                    find \
+                      /workspace/results/remote-jobs \
+                      -type f \
+                      -name summary.json \
+                    | head -n 1
+                  )"
+
+                  test -n "${SUMMARY_PATH}"
+
+                  echo "SUMMARY_PATH=${SUMMARY_PATH}"
+
+                  cat "${SUMMARY_PATH}"
+
+                  echo
+                  echo "MN5_TIER_A_ROUTED=PASS"
+                  echo "EXECUTION_TARGET=MN5"
+
+              fi
+
+              ROUTER_END_EPOCH=$(date +%s)
+
+              ROUTER_SECONDS=$((ROUTER_END_EPOCH - ROUTER_START_EPOCH))
+
+              echo
+              echo "========== FINAL ROUTER STATUS =========="
+
+              echo "REQUEST_ID=${REQUEST_ID}"
+              echo "FINAL_TARGET=${TARGET}"
+              echo "ROUTER_SECONDS=${ROUTER_SECONDS}"
+
+              echo "CLOUD_HPC_ROUTER=PASS"
+              echo "B1_6D_UNIFIED_EXECUTION=PASS"
+
+          resources:
+
+            requests:
+              cpu: "4"
+              memory: 4Gi
+
+            limits:
+              cpu: "4"
+              memory: 4Gi
+
+          volumeMounts:
+
+            - name: request
+              mountPath: /request
+              readOnly: true
+
+            - name: tier-a-script
+              mountPath: /inputs/tier-a
+              readOnly: true
+
+            - name: results
+              mountPath: /results
+
+            - name: workspace
+              mountPath: /workspace
+
+            - name: controller-code
+              mountPath: /inputs/controller
+              readOnly: true
+
+            - name: target-config
+              mountPath: /inputs/config
+              readOnly: true
+
+            - name: tier-a-spec
+              mountPath: /inputs/job-specs
+              readOnly: true
+
+            - name: mn5-ssh
+              mountPath: /ssh
+              readOnly: true
+
+      volumes:
+
+        - name: request
+          configMap:
+            name: cloud-hpc-b16d-request
+
+        - name: tier-a-script
+          configMap:
+            name: cloud-hpc-cpu-ai-v1-script
+
+        - name: results
+          emptyDir: {}
+
+        - name: workspace
+          emptyDir: {}
+
+        - name: controller-code
+          configMap:
+            name: kube2hpc-controller-code
+
+        - name: target-config
+          configMap:
+            name: kube2hpc-target-config
+
+        - name: tier-a-spec
+          configMap:
+            name: kube2hpc-tier-a-spec
+
+        - name: mn5-ssh
+          secret:
+            secretName: kube2hpc-mn5-ssh
+            defaultMode: 0400

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "Citation metadata is provisional; update the authors and preferred citation before publication."
+type: software
+title: "MINERVA Cloud-HPC Orchestration Tier-B"
+authors:
+  - name: "MINERVA authors (TO BE CONFIRMED)"
+version: "UNRELEASED"
+abstract: >-
+  Research software for policy-aware placement, operator review, Kubernetes
+  execution, Slurm offload, and paired Cloud-HPC benchmark comparison.

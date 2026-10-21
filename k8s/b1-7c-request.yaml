@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: cloud-hpc-b17c-request
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-controller
+    experiment: b1-7c-unified-automation
+
+data:
+
+  requestId: "b17c-light-001"
+
+  workload: "synthetic-light-v1"
+
+  reviewPolicy: "required"
+
+  decision: "pending"
+
+  approved: "false"
+
+  approvedTarget: ""
+
+  rejected: "false"

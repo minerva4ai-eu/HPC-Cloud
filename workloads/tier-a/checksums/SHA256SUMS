@@ -1,0 +1,2 @@
+99100ee2e0609551d392399b3c7ba3625250a0ccf23b2482ddbcc2a0d6476f17  workloads/tier-a/scripts/train_cpu_ai_v1.py
+a978a51181e60915586def6ccba3b1b26791025a9e7bcffac2eb62ddf6eade45  workloads/tier-a/slurm/tier-a-mn5.slurm

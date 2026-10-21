@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b17c-unified-controller
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-controller
+    experiment: b1-7c-unified-automation
+
+spec:
+  backoffLimit: 0
+
+  template:
+
+    metadata:
+
+      labels:
+        app: cloud-hpc-controller
+        experiment: b1-7c-unified-automation
+
+    spec:
+
+      serviceAccountName: b17c-controller
+
+      restartPolicy: Never
+
+      containers:
+
+        - name: controller
+
+          image: docker.io/library/python@sha256:a630a63cdb314e2d138a2fca3e375e319e8568346ffafac5b980f888630ac4f1
+
+          env:
+            - name: CLOUD_HPC_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+          command:
+            - python3
+            - -u
+            - /app/unified_controller.py
+
+          resources:
+
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+          volumeMounts:
+
+            - name: controller-code
+              mountPath: /app
+              readOnly: true
+
+      volumes:
+
+        - name: controller-code
+
+          configMap:
+            name: b17c-controller-code

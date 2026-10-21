@@ -1,0 +1,45 @@
+{
+  "name": "synthetic-heavy-v1",
+
+  "target": "hpc-site",
+
+  "remote_root": "<PROJECT_PATH>/synthetic-heavy",
+
+  "slurm_script": "slurm/run_heavy_mn5_v1.slurm",
+
+  "sbatch_args": [
+    "--account=<SLURM_ACCOUNT>",
+    "--partition=<SLURM_PARTITION>"
+  ],
+
+  "stdout": "logs/heavy-{job_id}.out",
+
+  "stderr": "logs/heavy-{job_id}.err",
+
+  "result": "results/job-{job_id}/result_heavy.json",
+
+  "success_markers": [
+    "SCRIPT_CHECKSUM=PASS",
+    "SIF_CHECKSUM=PASS",
+    "SINGULARITY_RUNTIME=PASS",
+    "HEAVY_AI_BASELINE=PASS",
+    "AI_EXIT_CODE=0",
+    "RESULT_ACCEPTANCE=PASS",
+    "HEAVY_MN5_EXECUTION=PASS"
+  ],
+
+  "artifacts": [
+    {
+      "path": "scripts/train_heavy_ai_v1.py",
+      "sha256": "a1955e873fe24cb39633f914562d96435bde39c92a5cfc7726c894a1ce520484"
+    },
+    {
+      "path": "slurm/run_heavy_mn5_v1.slurm",
+      "sha256": "dc66671bd1779f299b21a72a593780ee64d75861d245ab8ad3ab93748e25d39b"
+    },
+    {
+      "path": "containers/tensorflow-2.21.0-cpu.sif",
+      "sha256": "4baf239bc26d7563bb02f6bc105989f09033ac5a6d5b79f5d68a7fca7016d45f"
+    }
+  ]
+}

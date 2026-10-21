@@ -1,0 +1,179 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: b16-local-tier-a
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6b-local-tier-a
+
+  annotations:
+    cloud-hpc/offload: "local"
+
+spec:
+  backoffLimit: 0
+
+  template:
+    metadata:
+
+      labels:
+        app: cloud-hpc-router
+        experiment: b1-6b-local-tier-a
+        execution-target: local
+
+      annotations:
+        cloud-hpc/offload: "local"
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+
+        - name: tier-a-local
+
+          image: docker.io/tensorflow/tensorflow@sha256:f325279f01a3e742a1285d8d736b7e600f72ccf8b55cc19ee0a90b8cbfce4c7a
+
+          env:
+
+            - name: OFFLOAD_TARGET
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['cloud-hpc/offload']
+
+            - name: PYTHONHASHSEED
+              value: "20260813"
+
+            - name: OMP_NUM_THREADS
+              value: "4"
+
+            - name: TF_NUM_INTRAOP_THREADS
+              value: "4"
+
+            - name: TF_NUM_INTEROP_THREADS
+              value: "1"
+
+          command:
+            - /bin/bash
+            - -lc
+
+          args:
+            - |
+              set -euo pipefail
+
+              echo "============================================="
+              echo "Cloud-HPC B1.6B LOCAL Tier-A Execution"
+              echo "============================================="
+
+              echo "CONTAINER_START_UTC=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
+              echo "POD=$(hostname)"
+              echo "OFFLOAD_TARGET=${OFFLOAD_TARGET}"
+
+              echo
+              echo "========== ROUTING =========="
+
+              if [ "${OFFLOAD_TARGET}" != "local" ]; then
+                  echo "ROUTING_DECISION=INVALID"
+                  echo "B1_6B_LOCAL_EXECUTION=FAIL"
+                  exit 2
+              fi
+
+              echo "ROUTING_DECISION=LOCAL"
+              echo "ROUTING_REASON=EXPLICIT_USER_POLICY"
+              echo "ROUTING_POLICY=PASS"
+
+              echo
+              echo "========== SCRIPT INTEGRITY =========="
+
+              SCRIPT_SHA="$(
+                sha256sum /work/train_cpu_ai_v1.py |
+                awk '{print $1}'
+              )"
+
+              EXPECTED_SHA="99100ee2e0609551d392399b3c7ba3625250a0ccf23b2482ddbcc2a0d6476f17"
+
+              echo "EXPECTED_SCRIPT_SHA256=${EXPECTED_SHA}"
+              echo "ACTUAL_SCRIPT_SHA256=${SCRIPT_SHA}"
+
+              if [ "${SCRIPT_SHA}" != "${EXPECTED_SHA}" ]; then
+                  echo "SCRIPT_CHECKSUM=FAIL"
+                  echo "B1_6B_LOCAL_EXECUTION=FAIL"
+                  exit 3
+              fi
+
+              echo "SCRIPT_CHECKSUM=PASS"
+
+              echo
+              echo "========== LOCAL AI WORKLOAD =========="
+
+              python3 /work/train_cpu_ai_v1.py |
+                tee /results/workload.log
+
+              echo
+              echo "========== RESULT.JSON =========="
+
+              cat /results/result.json
+
+              echo
+              echo "========== RESULT VALIDATION =========="
+
+              grep -q \
+                '^CPU_AI_BASELINE=PASS$' \
+                /results/workload.log
+
+              python3 - <<'PY'
+              import json
+
+              path = "/results/result.json"
+
+              with open(path, "r", encoding="utf-8") as fh:
+                  result = json.load(fh)
+
+              accuracy = result.get("test_accuracy", 0)
+
+              print(f"VALIDATED_TEST_ACCURACY={accuracy}")
+
+              if accuracy < 0.95:
+                  raise SystemExit(
+                      "RESULT_ACCEPTANCE=FAIL"
+                  )
+
+              print("RESULT_ACCEPTANCE=PASS")
+              PY
+
+              echo
+              echo "LOCAL_TIER_A=PASS"
+              echo "B1_6B_LOCAL_EXECUTION=PASS"
+
+              echo "CONTAINER_END_UTC=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
+
+          resources:
+
+            requests:
+              cpu: "4"
+              memory: 4Gi
+
+            limits:
+              cpu: "4"
+              memory: 4Gi
+
+          volumeMounts:
+
+            - name: training-script
+              mountPath: /work/train_cpu_ai_v1.py
+              subPath: train_cpu_ai_v1.py
+              readOnly: true
+
+            - name: results
+              mountPath: /results
+
+      volumes:
+
+        - name: training-script
+          configMap:
+            name: cloud-hpc-cpu-ai-v1-script
+            defaultMode: 0420
+
+        - name: results
+          emptyDir: {}

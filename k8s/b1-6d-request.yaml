@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: cloud-hpc-b16d-request
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-router
+    experiment: b1-6d-unified-routing
+
+data:
+
+  requestId: "b16d-local-001"
+
+  target: "local"
+
+  approvalPolicy: "required"
+
+  approved: "false"

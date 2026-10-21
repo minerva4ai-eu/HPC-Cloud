@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mn5-network-preflight
+  namespace: <KUBERNETES_NAMESPACE>
+  labels:
+    app: kube2hpc-lite
+    experiment: b1-5-network-preflight
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: kube2hpc-lite
+        experiment: b1-5-network-preflight
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: network-preflight
+          image: python:3.11-slim
+          env:
+            - name: HPC_HOST
+              value: "<HPC_HOST>"
+          command:
+            - python
+            - -c
+          args:
+            - |
+              import os
+              import socket
+              import sys
+
+              host = os.environ["HPC_HOST"]
+              port = 22
+
+              print("======================================")
+              print("Kube2HPC B1.5 Kubernetes Network Test")
+              print("======================================")
+              print(f"target={host}:{port}")
+
+              try:
+                  infos = socket.getaddrinfo(
+                      host,
+                      port,
+                      type=socket.SOCK_STREAM
+                  )
+
+                  addresses = sorted(
+                      {info[4][0] for info in infos}
+                  )
+
+                  print(
+                      "resolved_addresses="
+                      + ",".join(addresses)
+                  )
+
+                  with socket.create_connection(
+                      (host, port),
+                      timeout=5
+                  ) as sock:
+
+                      banner = sock.recv(256).decode(
+                          "utf-8",
+                          errors="replace"
+                      ).strip()
+
+                  print(f"ssh_banner={banner}")
+
+                  if not banner.startswith("SSH-"):
+                      raise RuntimeError(
+                          "Port 22 connected but "
+                          "SSH banner was not received"
+                      )
+
+                  print("POD_DNS_TO_MN5=PASS")
+                  print("POD_TO_MN5_TCP22=PASS")
+                  print("KUBE2HPC_K8S_NETWORK_PREFLIGHT=PASS")
+
+              except Exception as exc:
+                  print(
+                      f"KUBE2HPC_K8S_NETWORK_ERROR={exc}"
+                  )
+                  print(
+                      "KUBE2HPC_K8S_NETWORK_PREFLIGHT=FAIL"
+                  )
+                  sys.exit(1)

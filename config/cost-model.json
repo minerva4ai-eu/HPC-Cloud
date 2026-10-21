@@ -1,0 +1,14 @@
+{
+  "model_version": "b1.10-cost-v1",
+  "description": "Optional user-facing Cloud cost model. Leave rates null until an institutional/provider rate is available.",
+  "cloud_rates": {
+    "eur_per_vcpu_hour": null,
+    "eur_per_gib_ram_hour": null,
+    "eur_per_gib_storage_month": null,
+    "eur_per_floating_ip_hour": null
+  },
+  "hpc": {
+    "incremental_user_charge_eur_per_job": null,
+    "note": "Set only when an authoritative site or project rate is available; this is not total infrastructure TCO."
+  }
+}

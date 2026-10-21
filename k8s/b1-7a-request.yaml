@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: cloud-hpc-b17a-request
+  namespace: <KUBERNETES_NAMESPACE>
+
+  labels:
+    app: cloud-hpc-decision-engine
+    experiment: b1-7a-resource-decision
+
+data:
+
+  requestId: "b17a-local-001"
+
+  requestedCpu: "4"
+
+  requestedMemory: "4Gi"
+
+  gpuRequired: "false"
+
+  gpuResource: "nvidia.com/gpu"
+
+  requestedGpu: "0"

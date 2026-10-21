@@ -1,0 +1,6 @@
+{
+  "hpc-site": {
+    "ssh_alias": "<HPC_SSH_ALIAS>",
+    "remote_root": "<PROJECT_PATH>/tier-a"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "synthetic-light-v1": {
+    "description": "Validated Tier-A lightweight synthetic CPU AI workload",
+    "requested_cpu": "4",
+    "requested_memory": "4Gi",
+    "gpu_required": false,
+    "requested_gpu": 0,
+    "hpc_memory_per_requested_core_gb": 2,
+    "cpu_threads": 4,
+    "workload_script": "workloads/tier-a/scripts/train_cpu_ai_v1.py",
+    "workload_class": "light",
+    "benchmark_class": "LIGHT"
+  },
+
+  "synthetic-heavy-v1": {
+    "description": "CPU-intensive synthetic AI workload for HPC offload experiments",
+    "requested_cpu": "16",
+    "requested_memory": "8Gi",
+    "gpu_required": false,
+    "requested_gpu": 0,
+    "hpc_memory_per_requested_core_gb": 2,
+    "cpu_threads": 16,
+    "workload_script": "workloads/synthetic-heavy/scripts/train_heavy_ai_v1.py",
+    "workload_class": "heavy",
+    "benchmark_class": "HEAVY_CAPACITY_BOUND"
+  },
+
+  "synthetic-heavy-common-v1": {
+    "description": "Common-feasible 8-CPU synthetic heavy benchmark",
+    "requested_cpu": "8",
+    "requested_memory": "8Gi",
+    "gpu_required": false,
+    "requested_gpu": 0,
+    "hpc_memory_per_requested_core_gb": 2,
+    "cpu_threads": 8,
+    "workload_script": "workloads/synthetic-heavy/scripts/train_heavy_ai_v1.py",
+    "workload_class": "heavy",
+    "benchmark_class": "HEAVY_COMMON_FEASIBLE"
+  }
+}
