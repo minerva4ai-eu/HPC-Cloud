@@ -302,15 +302,16 @@ must be reviewed and sanitized independently before sharing.
 ## Citation
 
 Provisional software citation metadata is in [CITATION.cff](CITATION.cff).
-Authors, repository URL, release version, and any paper/DOI information must be
-confirmed before publication; none has been fabricated here.
+Authors, release version, and any paper/DOI information must be confirmed before
+publication; none has been fabricated here.
 
 ## License
 
-An authoritative software license for this repository is currently being
-confirmed with the MINERVA project maintainers.
+This repository is licensed under the Creative Commons Attribution 4.0
+International License (CC BY 4.0).
 
-Until a license is explicitly added, no open-source license is granted.
+See [LICENSE.md](LICENSE.md) for details. The official license URL is
+https://creativecommons.org/licenses/by/4.0/.
 
 ## Acknowledgements
 

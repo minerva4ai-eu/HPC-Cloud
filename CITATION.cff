@@ -8,3 +8,5 @@ version: "UNRELEASED"
 abstract: >-
   Research software for policy-aware placement, operator review, Kubernetes
   execution, Slurm offload, and paired Cloud-HPC benchmark comparison.
+repository-code: "https://github.com/minerva4ai-eu/HPC-Cloud"
+license: CC-BY-4.0
