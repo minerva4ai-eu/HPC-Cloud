@@ -325,9 +325,4 @@ A short demonstration of the Tier-B Cloud-HPC orchestration workflow is availabl
 
 [Watch the Tier-B orchestration demo](demo/tier-b-orchestration-demo.mp4)
 
-## Demonstration Video
-
-A short demonstration of the Tier-B Cloud-HPC orchestration workflow is available here:
-
-[Watch the Tier-B orchestration demo](demo/tier-b-orchestration-demo.mp4)
 
