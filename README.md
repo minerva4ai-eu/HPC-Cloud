@@ -318,3 +318,9 @@ https://creativecommons.org/licenses/by/4.0/.
 This implementation was developed in the MINERVA Cloud-HPC research context.
 Institutional, facility, project, and funding acknowledgement text remains to
 be confirmed by the release owners before publication.
+
+## Demonstration Video
+
+A short demonstration of the Tier-B Cloud-HPC orchestration workflow is available here:
+
+[Watch the Tier-B orchestration demo](demo/tier-b-orchestration-demo.mp4)
