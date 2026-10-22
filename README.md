@@ -326,3 +326,8 @@ A short demonstration of the Tier-B Cloud-HPC orchestration workflow is availabl
 [Watch the Tier-B orchestration demo](demo/tier-b-orchestration-demo.mp4)
 
 
+## Benchmark Result Plots
+
+Publication-quality plots from the Tier-B B1.10 dual-platform benchmark are available in:
+
+[`results/plots/`](results/plots/)
