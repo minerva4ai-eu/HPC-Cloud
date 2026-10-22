@@ -41,6 +41,12 @@ validates any override, and dispatches one execution. The comparison path is a
 separate experimental intent that runs both feasible platforms sequentially and
 records normalized evidence without changing placement policy.
 
+## Architecture
+
+The Tier-B Cloud-HPC orchestration architecture integrates workload specification, platform knowledge, feasibility analysis, placement decisions, execution on Kubernetes or MareNostrum 5, and monitoring/feedback.
+
+![Tier-B Cloud-HPC orchestration architecture](docs/figures/main-architecture.png)
+
 ## Tier-B capabilities
 
 - Kubernetes resource discovery and per-node feasibility checks.
