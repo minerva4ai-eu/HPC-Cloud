@@ -1,3 +1,9 @@
+
+### Tier A — Manual Cloud-to-HPC Migration Baseline
+
+Tier A represents the initial baseline used to validate the Cloud-to-HPC execution path before introducing automated placement and orchestration. In this stage, a workload is first prepared and executed in the Kubernetes cloud environment, after which the corresponding workload package, configuration, and required data are transferred manually to MareNostrum 5 (MN5). The workload is then adapted to the HPC execution model and launched through Slurm. This baseline demonstrates that an equivalent application can be moved from a cloud/Kubernetes execution context to the HPC platform while preserving its core workload semantics, and it provides the reference workflow against which the more automated Tier-B orchestration mechanisms are evaluated.
+
+
 # MINERVA Cloud-HPC Orchestration Tier-B
 
 MINERVA Tier-B is a research implementation of policy-aware workload placement
@@ -10,6 +16,8 @@ This publication workspace contains the historical Tier-B implementation plus
 the audited B1.10 comparison extension. Infrastructure identifiers, credentials,
 raw scheduler captures, generated benchmark results, and machine-specific paths
 are intentionally absent.
+
+
 
 ## Architecture overview
 
